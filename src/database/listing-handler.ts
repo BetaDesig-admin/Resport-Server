@@ -4,10 +4,26 @@ import {PostgrestFilterBuilder} from "@supabase/postgrest-js";
 import { Subject } from "rxjs";
 
 
-export function getAllListings () {
-   return supabaseClient.from<Listing>("listing").select("*").then(
-    response => (response.data) ? response.data : []
-   );
+const batchSize: number = 100;
+
+
+export async function getAllListings(offset:number = 0):Promise<Listing[]> {
+    return supabaseClient.from<Listing>("listing").select("*").order("id").range(offset,(offset + batchSize - 1)).then(
+        async res => {
+            offset += batchSize;
+            console.log("Test Batch Resived : " + offset);
+            if (res.data) {
+                if (res.data.length == batchSize){                    
+                    return res.data.concat(await getAllListings(offset))
+                } else {
+                    return res.data;
+                }
+            } else {
+                console.log(res.error.message)
+                return [];
+            }
+        }
+    )
 }
 
 
@@ -17,7 +33,6 @@ export class ListingHandler {
     
     private quary:PostgrestFilterBuilder<Listing>;
     private currentCount:number = 0;
-    private batchSize: number = 200;
     private missingData:boolean = true;
 
 
@@ -31,21 +46,17 @@ export class ListingHandler {
     }
 
     public getNextPatch() {
-        console.log("Getting batch");
-        console.log("From " + this.currentCount + " to " + (this.currentCount + this.batchSize));
         const tempQuary = new PostgrestFilterBuilder(this.quary);
-        tempQuary.range(this.currentCount,(this.currentCount + this.batchSize - 1)).then(
+        tempQuary.range(this.currentCount,(this.currentCount + batchSize - 1)).then(
             response => {
                 if (response.data){
-                    console.log("size " + response.data.length);
-                    if (response.data.length != this.batchSize) {
-                        console.log("Last batch")
+                    if (response.data.length != batchSize) {
                         this.missingData = false;
                         this.onEnd();
                     } else {
                         this.getNextPatch();
                     }
-                    this.currentCount += this.batchSize;
+                    this.currentCount += batchSize;
                     this.listings$.next(response.data);                    
                 }
             }

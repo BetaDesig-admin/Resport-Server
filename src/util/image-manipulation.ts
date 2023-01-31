@@ -1,4 +1,5 @@
-import Pica from 'pica';
+import sharp from 'sharp';
+import { shareReplay } from 'rxjs';
 import {Image} from '../types/image'
 
 
@@ -6,8 +7,8 @@ export const STANDARD_IMAGE_SIZE_LIMITS = {SMALL:256,MEDIUM:512}
 
 
 
-
-export function ResizeImageData(
+const base64 = "base64,";
+export async function ResizeImageData(
     image:Image,
     limits:Limits ={
     maxWidth: STANDARD_IMAGE_SIZE_LIMITS.MEDIUM,
@@ -30,22 +31,40 @@ export function ResizeImageData(
             resizeWidth /= fac;
         }        
     }
+    resizeWidth = Math.floor(resizeWidth);
+    resizeHight = Math.floor(resizeHight);
 
-
-    const resizedImage = document.createElement('canvas')
-    resizedImage.height = resizeHight;
-    resizedImage.width = resizeWidth;
-    const original = new Image();
+    const parts = image.base64.split(base64);
+    return sharp(Buffer.from(parts[1], 'base64'))
+        .resize(Math.floor(resizeWidth),Math.floor(resizeHight))
+        .toBuffer()
+        .then(
+            resizedImageBuffer => {
+                const newBase64 = parts[0] + base64 + resizedImageBuffer.toString('base64');
+                return {
+                    name:image.name,
+                    extention:image.extention,
+                    url:image.url,
+                    base64:newBase64,
+                    size:{
+                        width:resizeWidth,
+                        height:resizeHight
+                    }
+                }                
+            }
+        )
+    /*
+    const resizedImage = new Canvas.Canvas(resizeWidth,resizeHight);
+    const original = new Canvas.Image();
     original.src = image.base64;
     
-    const originalImage = document.createElement('canvas')
-    originalImage.height = image.size.height;
-    originalImage.width = image.size.width;
-    const ctx = originalImage.getContext("2d") as CanvasRenderingContext2D 
+    const originalImage = new Canvas.Canvas(image.size.width,image.size.height);
+    const ctx = originalImage.getContext("2d"); 
     ctx.fillStyle = '#fff';
     ctx.drawImage(original,0,0);
     const pica = new Pica(); 
-    return pica.resize(originalImage,resizedImage).then(        
+    originalImage.
+    return pica.resize(originalImage as any,resizedImage as any).then(        
         result => {
             const uri = result.toDataURL("image/jpeg",0.7)
             return {
@@ -59,7 +78,7 @@ export function ResizeImageData(
                 base64:uri,
             }
         }
-    )
+    ) */
 }
 
 export function BasicLimits(size:number):Limits {
